@@ -59,6 +59,16 @@ output "ec2_public_ip" {
   value       = aws_eip.rancher.public_ip
 }
 
+output "ec2_iam_role" {
+  description = "IAM role attached to EC2 for secure EKS access"
+  value       = aws_iam_role.rancher_ec2.name
+}
+
+output "ec2_iam_role_arn" {
+  description = "IAM role ARN for EC2 instance"
+  value       = aws_iam_role.rancher_ec2.arn
+}
+
 output "rancher_url" {
   description = "Rancher URL"
   value       = "https://${aws_eip.rancher.public_ip}"

@@ -1,3 +1,6 @@
+# Data source to get current AWS caller identity
+data "aws_caller_identity" "current" {}
+
 # EKS Cluster - Completely Private
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
@@ -17,6 +20,36 @@ module "eks" {
   # Enable IRSA (IAM Roles for Service Accounts)
   enable_irsa = true
 
+  # Access Entries - Grant IAM user and EC2 role access to cluster
+  access_entries = {
+    current_user = {
+      principal_arn = data.aws_caller_identity.current.arn
+      
+      policy_associations = {
+        admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+    
+    # EC2 IAM Role - Allow Rancher EC2 to access EKS
+    rancher_ec2_role = {
+      principal_arn = aws_iam_role.rancher_ec2.arn
+      
+      policy_associations = {
+        admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+  }
+
   # Cluster encryption
   cluster_encryption_config = {
     provider_key_arn = aws_kms_key.eks.arn
@@ -32,9 +65,6 @@ module "eks" {
       most_recent = true
     }
     vpc-cni = {
-      most_recent = true
-    }
-    aws-ebs-csi-driver = {
       most_recent = true
     }
   }

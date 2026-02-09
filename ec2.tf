@@ -19,6 +19,65 @@ data "http" "my_ip" {
   url = "https://ipv4.icanhazip.com"
 }
 
+# IAM Role for EC2 to access EKS (SECURE - No hardcoded credentials!)
+resource "aws_iam_role" "rancher_ec2" {
+  name = "rancher-ec2-role-${var.environment}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name        = "rancher-ec2-role-${var.environment}"
+    Environment = var.environment
+  }
+}
+
+# IAM Policy for EKS access
+resource "aws_iam_role_policy" "rancher_eks_access" {
+  name = "rancher-eks-access"
+  role = aws_iam_role.rancher_ec2.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "eks:DescribeCluster",
+          "eks:ListClusters",
+          "eks:DescribeNodegroup",
+          "eks:ListNodegroups",
+          "eks:AccessKubernetesApi",
+          "eks:ListUpdates",
+          "eks:ListFargateProfiles"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# IAM Instance Profile
+resource "aws_iam_instance_profile" "rancher_ec2" {
+  name = "rancher-ec2-profile-${var.environment}"
+  role = aws_iam_role.rancher_ec2.name
+
+  tags = {
+    Name        = "rancher-ec2-profile-${var.environment}"
+    Environment = var.environment
+  }
+}
+
 # Security Group for EC2 - SSH from your IP, HTTP/HTTPS from ALB only
 resource "aws_security_group" "ec2_ssh" {
   name        = "rancher-ec2-sg-${var.environment}-v2"
@@ -81,6 +140,7 @@ resource "aws_instance" "rancher" {
   subnet_id                   = module.vpc.public_subnets[0]
   vpc_security_group_ids      = [aws_security_group.ec2_ssh.id]
   associate_public_ip_address = true
+  iam_instance_profile        = aws_iam_instance_profile.rancher_ec2.name
 
   root_block_device {
     volume_size           = 50
@@ -129,6 +189,18 @@ resource "aws_instance" "rancher" {
                 -p 80:80 -p 443:443 \
                 --privileged \
                 rancher/rancher:latest
+              
+              # Configure AWS CLI using EC2 instance metadata (credentials from IAM role)
+              # No hardcoded credentials needed!
+              
+              # Wait for EKS cluster to be ready (add delay)
+              sleep 60
+              
+              # Configure kubectl for EKS cluster
+              sudo -u ubuntu aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name}
+              
+              # Test kubectl access
+              sudo -u ubuntu kubectl get nodes > /home/ubuntu/kubectl-test.log 2>&1 || echo "EKS not ready yet" > /home/ubuntu/kubectl-test.log
               
               EOF
 
