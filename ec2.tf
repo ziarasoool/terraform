@@ -134,7 +134,7 @@ resource "aws_security_group_rule" "ec2_https_from_alb" {
 # EC2 Instance - Ubuntu with Rancher
 resource "aws_instance" "rancher" {
   ami           = data.aws_ami.ubuntu.id
-  instance_type = "t3.medium"
+  instance_type = "t3.2xlarge"
   key_name      = "ranchers"
 
   subnet_id                   = module.vpc.public_subnets[0]

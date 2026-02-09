@@ -75,8 +75,8 @@ module "eks" {
     standard = {
       name = "standard-ng"
 
-      # Instance type with 2 vCPU and 4 GB RAM
-      instance_types = ["t3.medium"]
+      # Instance type with 72 vCPU and 144 GB RAM
+      instance_types = ["t3.large"]
       
       capacity_type = "ON_DEMAND"
 
